@@ -33,9 +33,9 @@ if not OPENAI_API_KEY or not YOUTUBE_API_KEY:
     raise RuntimeError("Missing OPENAI_API_KEY or YOUTUBE_API_KEY configuration.")
 openai.api_key = OPENAI_API_KEY
 
-MODELS_TO_TRY: List[str] = [os.getenv("OPENAI_MODEL", "gpt-4.1"), "gpt-3.5-turbo"]
+MODELS_TO_TRY: List[str] = [os.getenv("OPENAI_MODEL", "gpt-4"), "gpt-3.5-turbo"]
 MODEL_PRICING: Dict[str, Dict[str, float]] = {
-    "gpt-4.1": {"input": 3.0, "output": 12.0},
+    "gpt-4": {"input": 3.0, "output": 12.0},
     "gpt-3.5-turbo": {"input": 0.5, "output": 1.5},
 }
 MAX_ATTEMPTS: int = 3
@@ -71,6 +71,52 @@ def _calculate_cost(usage: Dict[str, int], model: str) -> float:
     return cost_in + cost_out
 
 
+def _transform_description(description: str) -> str:
+    """
+    Filter a YouTube description by removing irrelevant content.
+    """
+    if not description or not description.strip():
+        return ""
+    
+    # Limit description length to save tokens
+    truncated_desc = description[:800] if len(description) > 800 else description
+        
+    prompt = f"""
+    From this YouTube video description, REMOVE ONLY the following elements:
+    - URLs and links
+    - Social media mentions (Instagram, Twitter, Facebook, etc.)
+    - Subscription/like/comment requests ("Subscribe to", "Like", "Comment below")
+    - Timestamps (0:00, 1:23, etc.)
+    - Copyright notices
+    - Marketing language ("Buy now", "Stream on", "Check out")
+    - Merch promotions
+    - Tour announcements
+    
+    Return the description with ONLY these elements removed. Keep everything else exactly as is.
+    
+    DESCRIPTION:
+    {truncated_desc}
+    """
+    
+    try:
+        _log("Transforming video description...")
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",  # Use cheaper model for preprocessing
+            messages=[
+                {"role": "system", "content": "You remove specified elements from text while preserving everything else."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.3,
+            max_tokens=150
+        )
+        result = response.choices[0].message.content.strip()
+        _log("Description transformed successfully")
+        return result
+    except Exception as e:
+        _log(f"Error transforming description: {e}")
+        return ""
+
+
 def _fetch_spotify_dataframe(playlist_id: str, client: Any) -> pd.DataFrame:
     """Retrieve Spotify tracks and features as a DataFrame."""
     svc = SpotifyService(client)
@@ -86,15 +132,34 @@ def _fetch_spotify_dataframe(playlist_id: str, client: Any) -> pd.DataFrame:
 
 
 def _fetch_youtube_dataframe(playlist_id: str, client: Any) -> pd.DataFrame:
-    """Retrieve YouTube playlist items as a DataFrame."""
+    """Retrieve YouTube playlist items with enhanced metadata as a DataFrame."""
     svc = YouTubeService(client)
     videos = svc.get_playlist_items(playlist_id)
     if not videos:
         return pd.DataFrame()
 
-    return pd.DataFrame(
-        [{"id": v["id"], "name": v["name"], "artist": v.get("channel", ""), "album": ""} for v in videos]
-    )
+    # Process videos to add transformed descriptions
+    enhanced_videos = []
+    for video in videos:
+        # Transform the description to remove irrelevant content
+        if 'description' in video and video['description']:
+            video['transformed_description'] = _transform_description(video['description'])
+        else:
+            video['transformed_description'] = ""
+        
+        enhanced_videos.append({
+            "id": video["id"],
+            "name": video["name"],
+            "artist": video.get("channel", ""),
+            "album": "",
+            "published_at": video.get("published_at", ""),
+            "description": video.get("description", ""),
+            "transformed_description": video.get("transformed_description", ""),
+            "tags": video.get("tags", []),
+            "topic_categories": video.get("topic_categories", [])
+        })
+    
+    return pd.DataFrame(enhanced_videos)
 
 
 def _construct_prompt(df: pd.DataFrame, language: str) -> Tuple[str, List[str]]:
@@ -104,12 +169,56 @@ def _construct_prompt(df: pd.DataFrame, language: str) -> Tuple[str, List[str]]:
 
     lines, exclusions = [], []
     for _, row in sample.iterrows():
+        # Basic track info
+        track_info = f"'{row['name']}' by {row['artist']}"
+        
+        # Add additional context based on available fields
+        extra_info = []
+        
+        # Add album if available (mainly for Spotify)
+        if 'album' in row and row['album']:
+            extra_info.append(f"Album: {row['album']}")
+            
+        # Add tags if available (mainly for YouTube)
+        if 'tags' in row and isinstance(row['tags'], list) and row['tags']:
+            # Limit to first 5 tags to keep prompt reasonable
+            tag_str = ', '.join(row['tags'][:5])
+            extra_info.append(f"Tags: {tag_str}")
+            
+        # Add topic categories if available (YouTube)
+        if 'topic_categories' in row and isinstance(row['topic_categories'], list) and row['topic_categories']:
+            topic_str = ', '.join(row['topic_categories'][:3])
+            extra_info.append(f"Topics: {topic_str}")
+            
+        # Add publication date if available (YouTube)
+        if 'published_at' in row and row['published_at']:
+            pub_date = row['published_at'].split('T')[0] if 'T' in row['published_at'] else row['published_at']
+            extra_info.append(f"Published: {pub_date}")
+            
+        # Add transformed description if available and not empty (YouTube)
+        if 'transformed_description' in row and row['transformed_description'] and row['transformed_description'] != "No relevant information.":
+            desc = row['transformed_description']
+            # Keep description brief in the prompt
+            if len(desc) > 100:
+                desc = desc[:97] + "..."
+            extra_info.append(f"Context: {desc}")
+            
+        # Add audio features if available (Spotify)
         feats = []
         for col in ["danceability", "energy", "tempo", "valence"]:
-            if col in row:
+            if col in row and not pd.isna(row[col]):
                 val = float(row[col])
                 feats.append(f"{col}={val:.2f}" if col != "tempo" else f"tempo={val:.1f}")
-        lines.append(f"- '{row['name']}' by {row['artist']} [{', '.join(feats)}]")
+        if feats:
+            extra_info.append(f"Features: {', '.join(feats)}")
+            
+        # Combine all information
+        if extra_info:
+            lines.append(f"- {track_info} [{' | '.join(extra_info)}]")
+        else:
+            lines.append(f"- {track_info}")
+            
+        # Add to exclusion list
         exclusions.append(row['name'].lower())
 
     prompt = (
