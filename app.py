@@ -20,6 +20,9 @@ from recommendation_service import process_playlist_and_recommend_song
 from analytics import init_analytics_db, store_login_data, update_recommendation_data
 
 app = Flask(__name__)
+# Backfill the legacy session_cookie_name property so Flask-Session works on Flask 2.3+
+app.session_cookie_name = app.config.get('SESSION_COOKIE_NAME', 'session')
+
 # Secret and session config
 decimal_key = os.environ.get("SECRET_KEY") or secrets.token_hex(24)
 app.secret_key = decimal_key
