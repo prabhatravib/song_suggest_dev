@@ -1,0 +1,40 @@
+/* Reset and base styles */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  color: white;
+  min-height: 100vh;
+  background-color: #3a1c54;
+  background-image: url('../images/background.png');
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+/* Form elements */
+.input-group .form-control {
+  border-radius: .375rem;
+}
+
+/* Buttons */
+.btn {
+  border-radius: .375rem;
+}
+
+/* Recommendation display */
+.lead.text-white {
+  font-size: 1.25rem;
+  margin-top: .5rem;
+}
+
+/* Alerts container */
+.alert {
+  width: 90%;
+  max-width: 650px;
+  margin: .5rem auto;
+}
