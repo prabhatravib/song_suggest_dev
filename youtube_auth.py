@@ -2,6 +2,7 @@ import os
 from flask import Blueprint, session, redirect, request, url_for, current_app
 from google_auth_oauthlib.flow import Flow
 from google.oauth2.credentials import Credentials
+import secrets
 
 youtube_auth = Blueprint('youtube_auth', __name__)
 
@@ -53,12 +54,15 @@ def login():
         redirect_uri=url_for('youtube_auth.callback', _external=True)
     )
     
-    # Store the state in session to verify callback
-    session['youtube_oauth_state'] = flow.state
+    # Generate a random state for CSRF protection
+    state = secrets.token_hex(16)
+    session['youtube_oauth_state'] = state
 
-    auth_url, state = flow.authorization_url(
+    # Get authorization URL
+    auth_url, _ = flow.authorization_url(
         access_type='offline',
-        include_granted_scopes='true'
+        include_granted_scopes='true',
+        state=state  # Pass the state parameter here
     )
     return redirect(auth_url)
 
@@ -69,17 +73,21 @@ def callback():
         current_app.logger.error(f"YouTube auth error: {error}")
         return f"Error during YouTube authentication: {error}", 400
 
+    # Verify state parameter to prevent CSRF
+    state_param = request.args.get('state')
+    stored_state = session.get('youtube_oauth_state')
+    if not state_param or state_param != stored_state:
+        return "Invalid state parameter. This could be a CSRF attempt.", 400
+
     # Get client config from environment variables
     client_config = _get_client_config()
     if not client_config:
         return "YouTube API credentials not configured", 500
     
-    # Recreate flow with the state saved
-    state = session.get('youtube_oauth_state')
+    # Create flow instance
     flow = Flow.from_client_config(
         client_config,
         scopes=SCOPES,
-        state=state,
         redirect_uri=url_for('youtube_auth.callback', _external=True)
     )
     
