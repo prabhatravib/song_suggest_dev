@@ -1,140 +1,102 @@
 import os
 import re
 from flask import session
-from google.oauth2.credentials import Credentials
-from googleapiclient.discovery import build
+from spotipy import Spotify
+from spotipy.oauth2 import SpotifyOAuth
 
 
-def create_youtube_client():
+def create_spotify_client():
     """
-    Instantiate and return a YouTube Data API client using stored session credentials.
-    Returns None if no valid credentials are present.
+    Instantiate and return a Spotipy client using the stored token.
+    Returns None if no valid token is present in session.
     """
-    cred_info = session.get('youtube_credentials')
-    if not cred_info:
+    token_info = session.get('spotify_token')
+    if not token_info:
         return None
-    creds = Credentials(
-        token=cred_info['token'],
-        refresh_token=cred_info.get('refresh_token'),
-        token_uri=cred_info['token_uri'],
-        client_id=cred_info['client_id'],
-        client_secret=cred_info['client_secret'],
-        scopes=cred_info['scopes']
-    )
-    return build('youtube', 'v3', credentials=creds)
+    return Spotify(auth=token_info['access_token'])
 
 
-def extract_youtube_playlist_id(url: str) -> str:
+def extract_spotify_playlist_id(playlist_url: str) -> str:
     """
-    Extract the playlist ID from various YouTube URL formats.
+    Extract the playlist ID from various Spotify URL formats.
     
     Handles:
-    - Standard YouTube: youtube.com/playlist?list=PLAYLIST_ID
-    - YouTube Music: music.youtube.com/playlist?list=PLAYLIST_ID
-    - YouTube Shortlink: youtu.be/VIDEO_ID?list=PLAYLIST_ID
-    - YouTube embedded: youtube.com/embed/VIDEO_ID?list=PLAYLIST_ID
-    - YouTube watch: youtube.com/watch?v=VIDEO_ID&list=PLAYLIST_ID
+    - Web player: open.spotify.com/playlist/PLAYLIST_ID
+    - Web player with additional parameters: open.spotify.com/playlist/PLAYLIST_ID?si=...
+    - App URI: spotify:playlist:PLAYLIST_ID
     
     Returns the extracted playlist ID or the original string if no ID was found.
     """
-    # Try to extract the playlist ID using regex
-    playlist_pattern = r'(?:list=)([a-zA-Z0-9_-]+)'
-    match = re.search(playlist_pattern, url)
+    # Extract from web URL format
+    web_pattern = r'spotify\.com/playlist/([a-zA-Z0-9]+)'
+    web_match = re.search(web_pattern, playlist_url)
+    if web_match:
+        return web_match.group(1)
     
-    if match:
-        return match.group(1)  # Return just the ID portion
+    # Extract from URI format
+    uri_pattern = r'spotify:playlist:([a-zA-Z0-9]+)'
+    uri_match = re.search(uri_pattern, playlist_url)
+    if uri_match:
+        return uri_match.group(1)
     
-    # If no match found, return the original value
-    # (it might already be just the ID)
-    return url
+    # Return original value if no patterns match (might already be just the ID)
+    return playlist_url
 
 
-class YouTubeService:
-    def __init__(self, client):
+class SpotifyService:
+    def __init__(self, client: Spotify):
         self.client = client
 
     def get_user_playlists(self):
         """
-        Fetch all of the current user's playlists (id and title).
+        Fetch all of the current user's playlists (id and name).
         """
         playlists = []
-        request = self.client.playlists().list(
-            part='snippet', mine=True, maxResults=50
-        )
-        while request:
-            response = request.execute()
-            for item in response.get('items', []):
-                playlists.append({'id': item['id'], 'name': item['snippet']['title']})
-            request = self.client.playlists().list_next(request, response)
+        results = self.client.current_user_playlists(limit=50)
+        while results:
+            for item in results['items']:
+                playlists.append({'id': item['id'], 'name': item['name']})
+            if results.get('next'):
+                results = self.client.next(results)
+            else:
+                results = None
         return playlists
 
-    def get_playlist_items(self, playlist_id: str):
+    def get_playlist_tracks(self, playlist_id: str):
         """
-        Fetch all videos in a given YouTube playlist with enhanced metadata:
-        - Basic info (id, title/name, channel)
-        - Publication date
-        - Description
-        - Tags/keywords
-        - Topic categories
+        Fetch all tracks (id, name, artists) from a given playlist.
         """
         # Extract the playlist ID if a full URL was provided
-        playlist_id = extract_youtube_playlist_id(playlist_id)
+        playlist_id = extract_spotify_playlist_id(playlist_id)
         
-        items = []
-        # First, get all playlist items
-        request = self.client.playlistItems().list(
-            part='snippet,contentDetails',
-            playlistId=playlist_id,
-            maxResults=50
+        tracks = []
+        results = self.client.playlist_items(
+            playlist_id,
+            additional_types=['track'],
+            fields='items.track.id,items.track.name,items.track.artists(name)',
+            limit=100
         )
-        
-        while request:
-            response = request.execute()
-            video_ids = []
-            temp_items = {}
-            
-            # Process basic playlist item info
-            for item in response.get('items', []):
-                snippet = item['snippet']
-                video_id = snippet['resourceId']['videoId']
-                video_ids.append(video_id)
-                
-                # Store basic info in temporary dictionary
-                temp_items[video_id] = {
-                    'id': video_id,
-                    'name': snippet['title'],
-                    'channel': snippet['channelTitle'],
-                    'published_at': snippet['publishedAt'],
-                    'description': snippet['description'],
-                    'album': ''  # YouTube videos don't have album info
-                }
-            
-            # Batch request additional video details in chunks of 50
-            for i in range(0, len(video_ids), 50):
-                chunk = video_ids[i:i+50]
-                video_response = self.client.videos().list(
-                    part='snippet,topicDetails',
-                    id=','.join(chunk)
-                ).execute()
-                
-                # Process additional video details
-                for video in video_response.get('items', []):
-                    video_id = video['id']
-                    if video_id in temp_items:
-                        # Add tags
-                        temp_items[video_id]['tags'] = video['snippet'].get('tags', [])
-                        
-                        # Add topic categories if available
-                        if 'topicDetails' in video:
-                            topic_categories = video['topicDetails'].get('relevantTopicIds', [])
-                            temp_items[video_id]['topic_categories'] = topic_categories
-                        else:
-                            temp_items[video_id]['topic_categories'] = []
-            
-            # Add all processed items to the result list
-            items.extend(temp_items.values())
-            
-            # Get next page of results if available
-            request = self.client.playlistItems().list_next(request, response)
-            
-        return items
+        while results:
+            for item in results['items']:
+                t = item['track']
+                tracks.append({
+                    'id': t['id'],
+                    'name': t['name'],
+                    'artists': [a['name'] for a in t['artists']]
+                })
+            if results.get('next'):
+                results = self.client.next(results)
+            else:
+                results = None
+        return tracks
+
+    def get_audio_features(self, track_ids: list[str]):
+        """
+        Batch fetch audio features (tempo, energy, danceability, etc.) for up to 100 tracks at a time.
+        """
+        features = []
+        for i in range(0, len(track_ids), 100):
+            batch = track_ids[i:i+100]
+            audio_feats = self.client.audio_features(batch)
+            features.extend([f for f in audio_feats if f])
+        return features
