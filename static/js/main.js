@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       const data = await response.json();
       if (data.error) throw new Error(data.error);
-      showRecommendation(data.recommendation);
+      showRecommendation(data.recommendation, data.details);
     } catch (err) {
       showMessage(err.message, 'danger');
     } finally {
@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       const data = await response.json();
       if (data.error) throw new Error(data.error);
-      showRecommendation(data.recommendation);
+      showRecommendation(data.recommendation, data.details);
     } catch (err) {
       showMessage(err.message, 'danger');
     } finally {
@@ -91,10 +91,42 @@ document.addEventListener('DOMContentLoaded', () => {
     recommendationResult.innerHTML = '';
   }
 
-  function showRecommendation(text) {
-    const p = document.createElement('p');
-    p.className = 'lead text-center text-white';
-    p.textContent = text;
-    recommendationResult.appendChild(p);
+  function showRecommendation(text, details) {
+    const container = document.createElement('div');
+    container.className = 'recommendation-card bg-dark text-white p-4 rounded text-center mb-4';
+    
+    // Add header
+    const header = document.createElement('p');
+    header.className = 'mb-3';
+    header.textContent = 'Suggested song is:';
+    container.appendChild(header);
+    
+    // Add song title in larger text
+    const title = document.createElement('h4');
+    title.className = 'mb-4';
+    // Decode HTML entities
+    const decodedText = decodeHTMLEntities(text);
+    title.textContent = decodedText;
+    container.appendChild(title);
+    
+    // Add YouTube button if we have details
+    if (details && details.youtube && details.youtube.url) {
+      const button = document.createElement('a');
+      button.href = details.youtube.url;
+      button.className = 'btn btn-danger';
+      button.textContent = 'Play on YouTube';
+      button.target = '_blank';
+      button.rel = 'noopener noreferrer';
+      container.appendChild(button);
+    }
+    
+    recommendationResult.appendChild(container);
+  }
+
+  // Helper function to decode HTML entities
+  function decodeHTMLEntities(text) {
+    const textArea = document.createElement('textarea');
+    textArea.innerHTML = text;
+    return textArea.value;
   }
 });
