@@ -5,11 +5,8 @@ from google.oauth2.credentials import Credentials
 
 youtube_auth = Blueprint('youtube_auth', __name__)
 
-# Path to client secrets JSON file
-CLIENT_SECRETS_FILE = os.environ.get('GOOGLE_CLIENT_SECRETS_FILE', 'client_secrets.json')
 # YouTube readonly scope
 SCOPES = ['https://www.googleapis.com/auth/youtube.readonly']
-
 
 def _credentials_to_dict(creds: Credentials) -> dict:
     return {
@@ -21,14 +18,41 @@ def _credentials_to_dict(creds: Credentials) -> dict:
         'scopes': creds.scopes
     }
 
+def _get_client_config():
+    """Create client config dictionary from environment variables."""
+    client_id = os.environ.get('YOUTUBE_CLIENT_ID')
+    client_secret = os.environ.get('YOUTUBE_CLIENT_SECRET')
+    
+    if not client_id or not client_secret:
+        current_app.logger.error("Missing YouTube API credentials in environment variables")
+        return None
+        
+    return {
+        "web": {
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+            "redirect_uris": [url_for('youtube_auth.callback', _external=True)]
+        }
+    }
+
 @youtube_auth.route('/login')
 def login():
-    # Create the OAuth flow using client secrets
-    flow = Flow.from_client_secrets_file(
-        CLIENT_SECRETS_FILE,
+    # Get client config from environment variables
+    client_config = _get_client_config()
+    
+    if not client_config:
+        return "YouTube API credentials not configured. Please set YOUTUBE_CLIENT_ID and YOUTUBE_CLIENT_SECRET environment variables.", 500
+        
+    # Create flow from client config
+    flow = Flow.from_client_config(
+        client_config,
         scopes=SCOPES,
         redirect_uri=url_for('youtube_auth.callback', _external=True)
     )
+    
     # Store the state in session to verify callback
     session['youtube_oauth_state'] = flow.state
 
@@ -45,14 +69,20 @@ def callback():
         current_app.logger.error(f"YouTube auth error: {error}")
         return f"Error during YouTube authentication: {error}", 400
 
+    # Get client config from environment variables
+    client_config = _get_client_config()
+    if not client_config:
+        return "YouTube API credentials not configured", 500
+    
     # Recreate flow with the state saved
     state = session.get('youtube_oauth_state')
-    flow = Flow.from_client_secrets_file(
-        CLIENT_SECRETS_FILE,
+    flow = Flow.from_client_config(
+        client_config,
         scopes=SCOPES,
         state=state,
         redirect_uri=url_for('youtube_auth.callback', _external=True)
     )
+    
     # Fetch the token using the full callback URL
     flow.fetch_token(authorization_response=request.url)
 
