@@ -113,7 +113,7 @@ def api_recommendation():
         # Run recommendation logic
         result = process_playlist_and_recommend_song(
             service=service,
-            playlist_id=playlist_id,  # The extraction happens in the YouTube service
+            playlist_id=playlist_id,
             client=client,
             language=language
         )
@@ -125,11 +125,12 @@ def api_recommendation():
         recommendation = html.escape(result['recommendation'])
 
         update_recommendation_data(
-            session.get('entry_id'),
+            session_id=session.get('entry_id'),
             service=service,
             playlist_id=playlist_id,
-            language=language,
             recommendation=recommendation,
+            details=result.get('details', {}),
+            language=language,
             outcome='success'
         )
 
@@ -141,9 +142,11 @@ def api_recommendation():
     except Exception as e:
         app.logger.error(f"Recommendation error: {e}", exc_info=True)
         update_recommendation_data(
-            session.get('entry_id'),
+            session_id=session.get('entry_id'),
             service=service,
             playlist_id=playlist_id,
+            recommendation=None,
+            details=None,
             language=language,
             outcome='failure',
             error_message=str(e)
