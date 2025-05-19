@@ -1,14 +1,17 @@
 import os
-from flask import Blueprint, session, redirect, request, url_for, current_app
+from flask import Blueprint, session, redirect, request, url_for, current_app, render_template
 from google_auth_oauthlib.flow import Flow
 from google.oauth2.credentials import Credentials
 import secrets
-import urllib.parse
 
 youtube_auth = Blueprint('youtube_auth', __name__)
 
-# YouTube readonly scope
-SCOPES = ['https://www.googleapis.com/auth/youtube.readonly']
+# Include all scopes that Google will add automatically
+SCOPES = [
+    'https://www.googleapis.com/auth/youtube.readonly',
+    'openid',
+    'https://www.googleapis.com/auth/userinfo.profile'
+]
 
 def _credentials_to_dict(creds: Credentials) -> dict:
     return {
@@ -42,31 +45,36 @@ def _get_client_config():
 
 @youtube_auth.route('/login')
 def login():
-    # Get client config from environment variables
-    client_config = _get_client_config()
-    
-    if not client_config:
-        return "YouTube API credentials not configured. Please set YOUTUBE_CLIENT_ID and YOUTUBE_CLIENT_SECRET environment variables.", 500
+    try:
+        # Get client config from environment variables
+        client_config = _get_client_config()
         
-    # Create flow from client config
-    flow = Flow.from_client_config(
-        client_config,
-        scopes=SCOPES,
-        redirect_uri=url_for('youtube_auth.callback', _external=True)
-    )
-    
-    # Generate a random state for CSRF protection
-    state = secrets.token_hex(16)
-    session['youtube_oauth_state'] = state
+        if not client_config:
+            return "YouTube API credentials not configured.", 500
+            
+        # Create flow from client config
+        flow = Flow.from_client_config(
+            client_config,
+            scopes=SCOPES,
+            redirect_uri=url_for('youtube_auth.callback', _external=True)
+        )
+        
+        # Generate a random state for CSRF protection
+        state = secrets.token_hex(16)
+        session['youtube_oauth_state'] = state
 
-    # Get authorization URL
-    auth_url, _ = flow.authorization_url(
-        access_type='offline',
-        include_granted_scopes='true',
-        state=state,
-        prompt='consent'  # Force consent screen to ensure refresh token
-    )
-    return redirect(auth_url)
+        # Get authorization URL
+        auth_url = flow.authorization_url(
+            access_type='offline',
+            include_granted_scopes='true',
+            state=state,
+            prompt='consent'  # Force consent screen to ensure refresh token
+        )[0]  # Only take the URL, ignore the state
+        
+        return redirect(auth_url)
+    except Exception as e:
+        current_app.logger.error(f"Login error: {str(e)}")
+        return render_template("index.html", error=f"YouTube authentication error: {str(e)}")
 
 @youtube_auth.route('/callback')
 def callback():
@@ -74,18 +82,18 @@ def callback():
         error = request.args.get('error')
         if error:
             current_app.logger.error(f"YouTube auth error: {error}")
-            return f"Error during YouTube authentication: {error}", 400
+            return render_template("index.html", error=f"YouTube authentication error: {error}")
 
         # Verify state parameter to prevent CSRF
         state_param = request.args.get('state')
         stored_state = session.get('youtube_oauth_state')
         if not state_param or state_param != stored_state:
-            return "Invalid state parameter. This could be a CSRF attempt.", 400
+            return render_template("index.html", error="Invalid state parameter. This could be a CSRF attempt.")
 
         # Get client config from environment variables
         client_config = _get_client_config()
         if not client_config:
-            return "YouTube API credentials not configured", 500
+            return render_template("index.html", error="YouTube API credentials not configured")
         
         # Create flow instance
         flow = Flow.from_client_config(
@@ -94,28 +102,19 @@ def callback():
             redirect_uri=url_for('youtube_auth.callback', _external=True)
         )
         
-        # Fetch the token using the full callback URL
-        # We need to disable scope verification to handle Google adding additional scopes
-        flow.oauth2session.verify_token_response = False
+        # Disable scope checking completely
+        if hasattr(flow, 'oauth2session'):
+            flow.oauth2session.compliance_hook = {'access_token_response': []}
         
-        # Get the authorization code
+        # Exchange code for token
         code = request.args.get('code')
-        token = flow.oauth2session.fetch_token(
-            client_config['web']['token_uri'],
-            client_secret=client_config['web']['client_secret'],
-            code=code,
-            include_client_id=True
-        )
+        if not code:
+            return render_template("index.html", error="No authorization code received")
+            
+        flow.fetch_token(code=code)
         
-        # Create credentials from the token
-        creds = Credentials(
-            token=token['access_token'],
-            refresh_token=token.get('refresh_token'),
-            token_uri=client_config['web']['token_uri'],
-            client_id=client_config['web']['client_id'],
-            client_secret=client_config['web']['client_secret'],
-            scopes=token.get('scope', '').split()
-        )
+        # Get credentials
+        creds = flow.credentials
         
         # Store credentials in session
         session['youtube_credentials'] = _credentials_to_dict(creds)
@@ -129,4 +128,4 @@ def callback():
         
     except Exception as e:
         current_app.logger.error(f"Callback error: {str(e)}")
-        return f"Authentication error: {str(e)}", 500
+        return render_template("index.html", error=f"Authentication error: {str(e)}")
