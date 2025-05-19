@@ -124,9 +124,20 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Helper function to decode HTML entities
+  // Updated and more robust decodeHTMLEntities function
   function decodeHTMLEntities(text) {
+    // First, use the browser's built-in decoder
     const textArea = document.createElement('textarea');
     textArea.innerHTML = text;
-    return textArea.value;
+    let decoded = textArea.value;
+    
+    // Then handle any remaining entities that might not be properly decoded
+    decoded = decoded.replace(/&quot;/g, '"');
+    decoded = decoded.replace(/&#39;/g, "'");
+    decoded = decoded.replace(/&amp;/g, '&');
+    decoded = decoded.replace(/&lt;/g, '<');
+    decoded = decoded.replace(/&gt;/g, '>');
+    
+    return decoded;
   }
 });
