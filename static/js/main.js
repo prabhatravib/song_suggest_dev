@@ -12,6 +12,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const recommendationResult = document.getElementById('recommendationResult');
   const languageInput = document.getElementById('languageInput');
 
+  // Track the current loaded playlist
+  let currentPlaylist = {
+    service: null,
+    playlistId: null,
+    isLoaded: false
+  };
+
   // Toggle between Spotify and YouTube flows
   serviceRadios.forEach(radio => {
     radio.addEventListener('change', () => {
@@ -25,40 +32,103 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Handle Spotify playlist submission
+  // Handle Spotify playlist submission - just validate and load the playlist
   spotifyForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     clearMessages();
     showSpinner();
     const url = spotifyForm.playlist_url.value;
+    
     try {
-      const response = await fetch('/api/recommendation', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: new URLSearchParams({ service: 'spotify', playlist_id: url, language: languageInput.value })
-      });
-      const data = await response.json();
-      if (data.error) throw new Error(data.error);
-      showRecommendation(data.recommendation, data.details);
+      // Just store the playlist info for now
+      currentPlaylist = {
+        service: 'spotify',
+        playlistId: url,
+        isLoaded: true
+      };
+      
+      // Show success message
+      showMessage('Playlist loaded successfully!', 'success');
+      
+      // Display the loaded playlist info
+      const playlistInfo = document.createElement('p');
+      playlistInfo.className = 'text-light mb-3';
+      playlistInfo.innerHTML = `<strong>Loaded Playlist:</strong> ${url}`;
+      playlistInfo.id = 'loadedPlaylistInfo';
+      
+      // Remove any existing playlist info before adding new one
+      const existingInfo = document.getElementById('loadedPlaylistInfo');
+      if (existingInfo) existingInfo.remove();
+      
+      const languageSection = document.querySelector('#languageInput').closest('div').closest('div');
+      languageSection.insertAdjacentElement('beforebegin', playlistInfo);
     } catch (err) {
       showMessage(err.message, 'danger');
+      currentPlaylist.isLoaded = false;
     } finally {
       hideSpinner();
     }
   });
 
-  // Handle YouTube playlist submission
+  // Handle YouTube playlist submission - just validate and load the playlist
   youtubeForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     clearMessages();
     showSpinner();
     const url = youtubeForm.playlist_url.value;
+    
+    try {
+      // Just store the playlist info for now
+      currentPlaylist = {
+        service: 'youtube',
+        playlistId: url,
+        isLoaded: true
+      };
+      
+      // Show success message
+      showMessage('Playlist loaded successfully!', 'success');
+      
+      // Display the loaded playlist info
+      const playlistInfo = document.createElement('p');
+      playlistInfo.className = 'text-light mb-3';
+      playlistInfo.innerHTML = `<strong>Loaded Playlist:</strong> ${url}`;
+      playlistInfo.id = 'loadedPlaylistInfo';
+      
+      // Remove any existing playlist info before adding new one
+      const existingInfo = document.getElementById('loadedPlaylistInfo');
+      if (existingInfo) existingInfo.remove();
+      
+      const languageSection = document.querySelector('#languageInput').closest('div').closest('div');
+      languageSection.insertAdjacentElement('beforebegin', playlistInfo);
+    } catch (err) {
+      showMessage(err.message, 'danger');
+      currentPlaylist.isLoaded = false;
+    } finally {
+      hideSpinner();
+    }
+  });
+
+  // Handle Get Suggestion button click - now this makes the recommendation API call
+  getBtn.addEventListener('click', async () => {
+    if (!currentPlaylist.isLoaded) {
+      showMessage('Please load a playlist first.', 'warning');
+      return;
+    }
+    
+    clearMessages();
+    showSpinner();
+    
     try {
       const response = await fetch('/api/recommendation', {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: new URLSearchParams({ service: 'youtube', playlist_id: url, language: languageInput.value })
+        body: new URLSearchParams({ 
+          service: currentPlaylist.service, 
+          playlist_id: currentPlaylist.playlistId, 
+          language: languageInput.value 
+        })
       });
+      
       const data = await response.json();
       if (data.error) throw new Error(data.error);
       showRecommendation(data.recommendation, data.details);
@@ -124,7 +194,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Helper function to decode HTML entities
-  // Updated and more robust decodeHTMLEntities function
   function decodeHTMLEntities(text) {
     // First, use the browser's built-in decoder
     const textArea = document.createElement('textarea');
