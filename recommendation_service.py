@@ -33,9 +33,9 @@ if not OPENAI_API_KEY or not YOUTUBE_API_KEY:
     raise RuntimeError("Missing OPENAI_API_KEY or YOUTUBE_API_KEY configuration.")
 openai.api_key = OPENAI_API_KEY
 
-MODELS_TO_TRY: List[str] = [os.getenv("OPENAI_MODEL", "gpt-4"), "gpt-3.5-turbo"]
+MODELS_TO_TRY: List[str] = [os.getenv("OPENAI_MODEL", "gpt-4.1"), "gpt-3.5-turbo"]
 MODEL_PRICING: Dict[str, Dict[str, float]] = {
-    "gpt-4": {"input": 3.0, "output": 12.0},
+    "gpt-4.1": {"input": 3.0, "output": 12.0},
     "gpt-3.5-turbo": {"input": 0.5, "output": 1.5},
 }
 MAX_ATTEMPTS: int = 3
