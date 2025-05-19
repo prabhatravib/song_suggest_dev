@@ -42,22 +42,33 @@ class YouTubeService:
             request = self.client.playlists().list_next(request, response)
         return playlists
 
-    def get_playlist_items(self, playlist_id: str):
-        """
-        Fetch all videos in a given YouTube playlist (id, title, channel).
-        """
-        items = []
-        request = self.client.playlistItems().list(
-            part='snippet', playlistId=playlist_id, maxResults=50
-        )
-        while request:
-            response = request.execute()
-            for item in response.get('items', []):
-                snippet = item['snippet']
-                items.append({
-                    'id': snippet['resourceId']['videoId'],
-                    'name': snippet['title'],
-                    'channel': snippet['channelTitle']
-                })
-            request = self.client.playlistItems().list_next(request, response)
-        return items
+# In youtube_service.py
+def get_playlist_items(self, playlist_url_or_id: str):
+    """
+    Fetch all videos in a given YouTube playlist (id, title, channel).
+    Handles both full URLs and direct playlist IDs.
+    """
+    # Extract playlist ID if a full URL was provided
+    playlist_id = playlist_url_or_id
+    if "youtube.com" in playlist_url_or_id or "youtu.be" in playlist_url_or_id:
+        # Look for the list parameter
+        import re
+        match = re.search(r'list=([A-Za-z0-9_-]+)', playlist_url_or_id)
+        if match:
+            playlist_id = match.group(1)
+    
+    items = []
+    request = self.client.playlistItems().list(
+        part='snippet', playlistId=playlist_id, maxResults=50
+    )
+    while request:
+        response = request.execute()
+        for item in response.get('items', []):
+            snippet = item['snippet']
+            items.append({
+                'id': snippet['resourceId']['videoId'],
+                'name': snippet['title'],
+                'channel': snippet['channelTitle']
+            })
+        request = self.client.playlistItems().list_next(request, response)
+    return items
