@@ -64,6 +64,11 @@ def login():
 
 @youtube_auth.route('/callback')
 def callback():
+    # Log all request parameters
+    current_app.logger.info(f"Callback received. Args: {dict(request.args)}")
+    current_app.logger.info(f"Session variables: {dict([(k, '***') if 'secret' in k or 'token' in k else (k, v) for k, v in session.items()])}")
+    current_app.logger.info(f"Environment variables present: YOUTUBE_CLIENT_ID: {'YES' if os.environ.get('YOUTUBE_CLIENT_ID') else 'NO'}, YOUTUBE_CLIENT_SECRET: {'YES' if os.environ.get('YOUTUBE_CLIENT_SECRET') else 'NO'}")
+    
     try:
         error = request.args.get('error')
         if error:
