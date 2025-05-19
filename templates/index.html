@@ -42,35 +42,18 @@
     <h1 class="text-center mb-2">SongSuggest</h1>
     <p class="tagline">Get song suggestions tailored to your taste, powered by GenAI</p>
 
-    <!-- Service Selector -->
+    <!-- Service Selector - YouTube on left, Spotify on right -->
     <div class="text-center mb-3">
       <label class="btn btn-outline-light me-2">
-        <input type="radio" name="service" value="spotify" checked> Spotify
+        <input type="radio" name="service" value="youtube" checked> YouTube
       </label>
       <label class="btn btn-outline-light">
-        <input type="radio" name="service" value="youtube"> YouTube
+        <input type="radio" name="service" value="spotify"> Spotify
       </label>
     </div>
 
-    <!-- Spotify Flow -->
-    <div id="spotify-flow">
-      <form action="{{ url_for('spotify_auth.spotify_auth_route') }}" method="GET" class="text-center mb-4">
-        <button class="btn btn-warning">
-          Spotify Auth {% if spotify_authorized %}<span class="text-success">✔️</span>{% endif %}
-        </button>
-      </form>
-      <form id="spotify-url-form" class="mb-3" style="{% if not spotify_authorized %}display:none;{% endif %}">
-        <div class="input-group">
-          <button type="submit" class="btn btn-success">Submit Spotify Playlist</button>
-          <input type="url" name="playlist_url" class="form-control"
-            placeholder="Enter Spotify Playlist Link" required
-            pattern="https?://.*spotify\.com/.*playlist/[A-Za-z0-9]+">
-        </div>
-      </form>
-    </div>
-
-    <!-- YouTube Flow -->
-    <div id="youtube-flow" style="display:none;">
+    <!-- YouTube Flow - Now showing by default -->
+    <div id="youtube-flow">
       <form action="{{ url_for('youtube_auth.login') }}" method="GET" class="text-center mb-4">
         <button class="btn btn-danger">
           YouTube Auth {% if youtube_authorized %}<span class="text-success">✔️</span>{% endif %}
@@ -82,6 +65,23 @@
           <input type="url" name="playlist_url" class="form-control"
             placeholder="Enter YouTube Playlist Link" required
             pattern="https?://.*(youtube\.com|youtu\.be).*list=[A-Za-z0-9_-]+">
+        </div>
+      </form>
+    </div>
+
+    <!-- Spotify Flow - Now hidden by default -->
+    <div id="spotify-flow" style="display:none;">
+      <form action="{{ url_for('spotify_auth.spotify_auth_route') }}" method="GET" class="text-center mb-4">
+        <button class="btn btn-warning">
+          Spotify Auth {% if spotify_authorized %}<span class="text-success">✔️</span>{% endif %}
+        </button>
+      </form>
+      <form id="spotify-url-form" class="mb-3" style="{% if not spotify_authorized %}display:none;{% endif %}">
+        <div class="input-group">
+          <button type="submit" class="btn btn-success">Submit Spotify Playlist</button>
+          <input type="url" name="playlist_url" class="form-control"
+            placeholder="Enter Spotify Playlist Link" required
+            pattern="https?://.*spotify\.com/.*playlist/[A-Za-z0-9]+">
         </div>
       </form>
     </div>
