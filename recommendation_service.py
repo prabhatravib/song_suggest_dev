@@ -220,7 +220,7 @@ def _fetch_youtube_dataframe(playlist_id: str, client: Any) -> pd.DataFrame:
     
     # Transform descriptions in batches
     _log(f"Processing {len(all_descriptions)} video descriptions in batches")
-    transformed_descriptions = _batch_transform_descriptions(all_descriptions)
+    #transformed_descriptions = _batch_transform_descriptions(all_descriptions)
     
     # Process videos to add transformed descriptions
     enhanced_videos = []
@@ -232,7 +232,8 @@ def _fetch_youtube_dataframe(playlist_id: str, client: Any) -> pd.DataFrame:
             "album": "",
             "published_at": video.get("published_at", ""),
             "description": video.get("description", ""),
-            "transformed_description": transformed_descriptions[i] if i < len(transformed_descriptions) else "",
+            
+            #"transformed_description": transformed_descriptions[i] if i < len(transformed_descriptions) else "",
             "tags": video.get("tags", []),
             "topic_categories": video.get("topic_categories", [])
         }
@@ -275,12 +276,15 @@ def _construct_prompt(df: pd.DataFrame, language: str) -> Tuple[str, List[str]]:
             extra_info.append(f"Published: {pub_date}")
             
         # Add transformed description if available and not empty (YouTube)
+        '''
         if 'transformed_description' in row and row['transformed_description'] and row['transformed_description'] != "No relevant information.":
             desc = row['transformed_description']
             # Keep description brief in the prompt
             if len(desc) > 100:
                 desc = desc[:97] + "..."
             extra_info.append(f"Context: {desc}")
+        '''
+        desc=row['description']
             
         # Add audio features if available (Spotify)
         feats = []
