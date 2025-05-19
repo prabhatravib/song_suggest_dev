@@ -90,10 +90,6 @@ def api_playlists():
 
 @app.route('/api/recommendation', methods=['POST'])
 def api_recommendation():
-    service = None
-    playlist_id = None
-    language = None
-    
     try:
         service = request.form.get('service')
         playlist_id = request.form.get('playlist_id')
@@ -117,7 +113,7 @@ def api_recommendation():
         # Run recommendation logic
         result = process_playlist_and_recommend_song(
             service=service,
-            playlist_id=playlist_id,
+            playlist_id=playlist_id,  # The extraction happens in the YouTube service
             client=client,
             language=language
         )
@@ -128,13 +124,13 @@ def api_recommendation():
         # Sanitize output
         recommendation = html.escape(result['recommendation'])
 
-        # Check analytics.py to see what parameters it accepts
         update_recommendation_data(
-            session_id=session.get('entry_id'),
+            session.get('entry_id'),
             service=service,
             playlist_id=playlist_id,
+            language=language,
             recommendation=recommendation,
-            details=result.get('details', {})
+            outcome='success'
         )
 
         return jsonify({
@@ -144,22 +140,16 @@ def api_recommendation():
 
     except Exception as e:
         app.logger.error(f"Recommendation error: {e}", exc_info=True)
+        update_recommendation_data(
+            session.get('entry_id'),
+            service=service,
+            playlist_id=playlist_id,
+            language=language,
+            outcome='failure',
+            error_message=str(e)
+        )
+        return jsonify({'error': 'Unexpected error occurred.'}), 500
         
-        # Only attempt to log if we have the necessary information
-        if service and playlist_id:
-            try:
-                update_recommendation_data(
-                    session_id=session.get('entry_id'),
-                    service=service,
-                    playlist_id=playlist_id,
-                    recommendation=None,  # No recommendation in error case
-                    details={"error": str(e)}
-                )
-            except Exception as analytics_error:
-                app.logger.error(f"Analytics error: {analytics_error}")
-                
-        return jsonify({'error': f'Unexpected error occurred: {str(e)}'}), 500
-
 if __name__ == '__main__':
     debug = os.environ.get('FLASK_ENV') == 'development'
     app.run(debug=debug)
