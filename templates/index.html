@@ -41,11 +41,72 @@
   <div class="overlay-container">
     <h1 class="text-center mb-2">SongSuggest</h1>
     <p class="tagline">Get song suggestions tailored to your taste, powered by GenAI</p>
-    
+
     <!-- Service Selector -->
-    <!-- Rest of your content here -->
-    
+    <div class="text-center mb-3">
+      <label class="btn btn-outline-light me-2">
+        <input type="radio" name="service" value="spotify" checked> Spotify
+      </label>
+      <label class="btn btn-outline-light">
+        <input type="radio" name="service" value="youtube"> YouTube
+      </label>
+    </div>
+
+    <!-- Spotify Flow -->
+    <div id="spotify-flow">
+      <form action="{{ url_for('spotify_auth.spotify_auth_route') }}" method="GET" class="text-center mb-4">
+        <button class="btn btn-warning">
+          Spotify Auth {% if spotify_authorized %}<span class="text-success">✔️</span>{% endif %}
+        </button>
+      </form>
+      <form id="spotify-url-form" class="mb-3" style="{% if not spotify_authorized %}display:none;{% endif %}">
+        <div class="input-group">
+          <button type="submit" class="btn btn-success">Submit Spotify Playlist</button>
+          <input type="url" name="playlist_url" class="form-control"
+            placeholder="Enter Spotify Playlist Link" required
+            pattern="https?://.*spotify\.com/.*playlist/[A-Za-z0-9]+">
+        </div>
+      </form>
+    </div>
+
+    <!-- YouTube Flow -->
+    <div id="youtube-flow" style="display:none;">
+      <form action="{{ url_for('youtube_auth.login') }}" method="GET" class="text-center mb-4">
+        <button class="btn btn-danger">
+          YouTube Auth {% if youtube_authorized %}<span class="text-success">✔️</span>{% endif %}
+        </button>
+      </form>
+      <form id="youtube-url-form" class="mb-3" style="{% if not youtube_authorized %}display:none;{% endif %}">
+        <div class="input-group">
+          <button type="submit" class="btn btn-success">Submit YouTube Playlist</button>
+          <input type="url" name="playlist_url" class="form-control"
+            placeholder="Enter YouTube Playlist Link" required
+            pattern="https?://.*(youtube\.com|youtu\.be).*list=[A-Za-z0-9_-]+">
+        </div>
+      </form>
+    </div>
+
+    <!-- Language & Get Suggestion -->
+    <div class="mb-4">
+      <div class="input-group">
+        <span class="input-group-text">Language</span>
+        <input id="languageInput" name="language" type="text" class="form-control"
+          placeholder="e.g. English" value="{{ language or 'English' }}"
+          maxlength="20" required>
+      </div>
+      <div class="text-center mt-3">
+        <button id="getRecommendationBtn" class="btn btn-primary">
+          Get Suggestion <span id="recommendationSpinner" class="spinner-border spinner-border-sm ms-2" style="display:none;"></span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Messages & Recommendation Result -->
+    <div id="messagesArea" class="mb-4"></div>
+    <div id="recommendationResult"></div>
   </div>
+
+  <!-- Bootstrap JS Bundle -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
