@@ -140,14 +140,14 @@ def api_recommendation():
 
     except Exception as e:
         app.logger.error(f"Recommendation error: {e}", exc_info=True)
+        # In app.py - find this section in api_recommendation function
         update_recommendation_data(
             session.get('entry_id'),
             service=service,
             playlist_id=playlist_id,
-            language=language,
-            outcome='failure',
-            error_message=str(e)
-        )
+            recommendation=recommendation,
+            outcome='success')
+
         return jsonify({'error': 'Unexpected error occurred.'}), 500
 
 if __name__ == '__main__':
