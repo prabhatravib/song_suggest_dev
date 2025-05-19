@@ -38,3 +38,28 @@ body {
   max-width: 650px;
   margin: .5rem auto;
 }
+
+/* Recommendation card styling */
+.recommendation-card {
+  background-color: rgba(33, 37, 41, 0.9) !important;
+  max-width: 500px;
+  margin: 0 auto;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.recommendation-card h4 {
+  color: white;
+  font-weight: 500;
+}
+
+.recommendation-card .btn-danger {
+  background-color: #FF4E45;
+  border-color: #FF4E45;
+  padding: 0.5rem 1.5rem;
+}
+
+.recommendation-card p {
+  color: #adb5bd;
+  font-size: 0.95rem;
+}
