@@ -1,4 +1,5 @@
 import os
+import re
 from flask import session
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
@@ -21,6 +22,40 @@ def create_youtube_client():
         scopes=cred_info['scopes']
     )
     return build('youtube', 'v3', credentials=creds)
+
+
+def extract_youtube_playlist_id(url: str) -> str:
+    """
+    Extract the playlist ID from various YouTube URL formats.
+    
+    Handles:
+    - Standard YouTube: youtube.com/playlist?list=PLAYLIST_ID
+    - YouTube Music: music.youtube.com/playlist?list=PLAYLIST_ID
+    - YouTube Shortlink: youtu.be/VIDEO_ID?list=PLAYLIST_ID
+    - YouTube embedded: youtube.com/embed/VIDEO_ID?list=PLAYLIST_ID
+    - YouTube watch: youtube.com/watch?v=VIDEO_ID&list=PLAYLIST_ID
+    """
+    import re
+    
+    # Try to extract the playlist ID using regex - match more specifically
+    playlist_pattern = r'[?&]list=([a-zA-Z0-9_-]+)'
+    match = re.search(playlist_pattern, url)
+    
+    if match:
+        return match.group(1)  # Return just the ID portion
+        
+    # Try alternative patterns for different URL formats
+    alternate_pattern = r'youtube\.com/playlist/([a-zA-Z0-9_-]+)'
+    alt_match = re.search(alternate_pattern, url)
+    if alt_match:
+        return alt_match.group(1)
+    
+    # If no match found and it looks like a URL, log a warning
+    if '/' in url or '?' in url:
+        print(f"Warning: Could not extract playlist ID from: {url}")
+        
+    # Return the original value (it might already be just the ID)
+    return url
 
 
 class YouTubeService:
@@ -51,6 +86,9 @@ class YouTubeService:
         - Tags/keywords
         - Topic categories
         """
+        # Extract the playlist ID if a full URL was provided
+        playlist_id = extract_youtube_playlist_id(playlist_id)
+        
         items = []
         # First, get all playlist items
         request = self.client.playlistItems().list(
