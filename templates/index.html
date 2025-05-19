@@ -73,7 +73,7 @@
 
 <!-- Spotify Flow -->
 <div id="spotify-flow">
-  <form action="{{ url_for('spotify_auth.spotify_auth') }}" method="GET" class="text-center mb-4">
+  <form action="{{ url_for('spotify_auth.spotify_auth_route') }}" method="GET" class="text-center mb-4">
     <button class="btn btn-warning">
       Spotify Auth
       {% if spotify_authorized %}<span class="text-success">✔️</span>{% endif %}
