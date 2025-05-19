@@ -156,7 +156,7 @@ def _batch_transform_descriptions(descriptions: List[str], batch_size: int = 50)
         try:
             _log(f"Sending batch of {len(batch)} descriptions to OpenAI")
             response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo-16k",  # Using 16k model for larger batches
+                model="gpt-3.5-turbo",  # U
                 messages=[
                     {"role": "system", "content": "You clean YouTube descriptions by removing specified elements."},
                     {"role": "user", "content": prompt}
